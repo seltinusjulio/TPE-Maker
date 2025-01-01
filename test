@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Menu Expandable dengan Transisi Halus</title>
+  <style>
+    .nav {
+      list-style: none;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      max-width: 250px;
+      margin: 0;
+    }
+    .nav-item {
+      margin: 4px 0;
+      position: relative;
+    }
+    .menu-title {
+      cursor: pointer;
+      background: #f5f5f5;
+      padding: 10px 16px;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.3s;
+    }
+    .menu-title:hover {
+      background: #eaeaea;
+    }
+    .menu-title a {
+      pointer-events: none;
+      color: #333;
+      text-decoration: none;
+      font-weight: 500;
+      flex: 1;
+    }
+    .submenu {
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, opacity 0.3s ease;
+      padding-left: 20px;
+      list-style: none;
+      margin: 0;
+    }
+    .submenu.open {
+      opacity: 1;
+    }
+    .submenu .menu-title {
+      background: #fafafa;
+    }
+    .arrow {
+      border: solid #666;
+      border-width: 0 2px 2px 0;
+      display: inline-block;
+      padding: 3px;
+      transform: rotate(45deg);
+      transition: transform 0.3s ease;
+      margin-left: 8px;
+    }
+    .nav-item.expanded > .menu-title .arrow {
+      transform: rotate(-135deg);
+    }
+  </style>
+</head>
+<body>
+  <pre id="rawMenuList" style="display: none;">
+- Beranda (/)
+- Artikel
+-- Katekese Liturgi (/search/label/Katekese)
+-- Seputar Musik Liturgi (/search/label/Artikel)
+-- Saran Nyanyian (/search/label/Saran%20Nyanyian)
+-- Indeks Artikel (/p/indeks-artikel.html)
+- Daftar Nyanyian
+-- Puji Syukur (/p/puji-syukur.html)
+-- Madah Bakti (/p/madah-bakti.html)
+-- Mazmur Tanggapan (/p/mazmur-tanggapan.html)
+-- Semua Kategori (/p/indeks-kategori.html)
+-- Indeks Nyanyian (/p/indeks-nyanyian-liturgi.html)
+- Katalog (/p/katalog.html)
+- Tentang
+-- Kontribusi (/p/kontribusi.html)
+-- Nyanyian Liturgi (/p/tentang-nyanyian-liturgi.html)
+-- Contoh
+--- Contoh2
+---- Contoh3
+----- Contoh4
+  </pre>
+
+  <div id="menu-container"></div>
+
+  <script>
+    function parseMenu(text) {
+      const lines = text.trim().split('\n');
+      const menu = [];
+      let currentPath = [menu];
+
+      lines.forEach((line, index) => {
+        const trimmedLine = line.trim();
+        const match = trimmedLine.match(/^(-+)\s*([^(]+)(?:\(([^)]+)\))?$/);
+
+        if (!match) {
+          console.error(`Line ${index + 1} didn't match pattern:`, trimmedLine);
+          return;
+        }
+
+        const level = match[1].length - 1;
+        const title = match[2].trim();
+        const link = match[3] ? match[3].trim() : '#';
+        const item = { title, link, children: [] };
+
+        while (currentPath.length > level + 1) {
+          currentPath.pop();
+        }
+
+        if (currentPath[level]) {
+          currentPath[level].push(item);
+        } else {
+          console.error(`Invalid structure at line ${index + 1}:`, line);
+        }
+
+        currentPath.push(item.children);
+      });
+
+      return menu;
+    }
+
+    function generateHTML(menu) {
+      let html = '<ul class="nav">';
+
+      menu.forEach(item => {
+        const hasChildren = item.children && item.children.length > 0;
+        html += `
+          <li class="nav-item">
+            <div class="menu-title">
+              <a href="${item.link}">${item.title}</a>
+              ${hasChildren ? '<span class="arrow"></span>' : ''}
+            </div>
+            ${hasChildren ? generateSubmenu(item.children) : ''}
+          </li>
+        `;
+      });
+
+      html += '</ul>';
+      return html;
+    }
+
+    function generateSubmenu(items) {
+      let html = '<ul class="submenu">';
+
+      items.forEach(item => {
+        const hasChildren = item.children && item.children.length > 0;
+        html += `
+          <li class="nav-item">
+            <div class="menu-title">
+              <a href="${item.link}">${item.title}</a>
+              ${hasChildren ? '<span class="arrow"></span>' : ''}
+            </div>
+            ${hasChildren ? generateSubmenu(item.children) : ''}
+          </li>
+        `;
+      });
+
+      html += '</ul>';
+      return html;
+    }
+
+    function toggle(el, event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const menuTitle = el.closest('.menu-title');
+      const navItem = menuTitle.closest('.nav-item');
+      const submenu = navItem.querySelector(':scope > .submenu');
+
+      if (!submenu) {
+        const link = menuTitle.querySelector('a').getAttribute('href');
+        if (link && link !== '#') {
+          window.location.href = link;
+        }
+        return;
+      }
+
+      const isExpanded = navItem.classList.contains('expanded');
+
+      if (isExpanded) {
+        collapseWithChildren(navItem);
+      } else {
+        expandSubmenu(navItem);
+      }
+    }
+
+    function expandSubmenu(navItem) {
+      const submenu = navItem.querySelector(':scope > .submenu');
+      if (!submenu) return;
+
+      navItem.classList.add('expanded');
+      submenu.classList.add('open');
+
+      const totalHeight = getSubmenuFullHeight(submenu);
+      submenu.style.maxHeight = `${totalHeight}px`;
+      submenu.style.opacity = '1';
+    }
+
+    function collapseWithChildren(navItem) {
+      const allSubmenus = navItem.querySelectorAll('.submenu');
+      allSubmenus.forEach(sub => {
+        sub.style.maxHeight = '0';
+        sub.style.opacity = '0';
+        sub.closest('.nav-item').classList.remove('expanded');
+      });
+
+      allSubmenus.forEach(sub => {
+        sub.addEventListener('transitionend', function handler() {
+          sub.classList.remove('open');
+          sub.removeEventListener('transitionend', handler);
+        });
+      });
+    }
+
+    function getSubmenuFullHeight(submenu) {
+      const clone = submenu.cloneNode(true);
+      clone.style.maxHeight = 'none';
+      clone.style.opacity = '1';
+      clone.style.position = 'absolute';
+      clone.style.visibility = 'hidden';
+      document.body.appendChild(clone);
+
+      const height = clone.scrollHeight;
+      document.body.removeChild(clone);
+
+      return height;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const menuText = document.getElementById('rawMenuList').textContent;
+      const menuStructure = parseMenu(menuText);
+      console.log('Parsed Menu Structure:', JSON.stringify(menuStructure, null, 2));
+      const menuHTML = generateHTML(menuStructure);
+
+      const menuContainer = document.getElementById('menu-container');
+      menuContainer.innerHTML = menuHTML;
+
+      document.getElementById('rawMenuList').remove();
+
+      const submenus = menuContainer.querySelectorAll('.submenu');
+      submenus.forEach(submenu => {
+        submenu.style.maxHeight = '0';
+        submenu.style.opacity = '0';
+      });
+
+      const menuTitles = menuContainer.querySelectorAll('.menu-title');
+      menuTitles.forEach(title => {
+        title.addEventListener('click', (event) => toggle(title, event));
+      });
+    });
+  </script>
+</body>
+</html>
